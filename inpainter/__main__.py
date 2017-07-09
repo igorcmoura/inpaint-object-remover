@@ -10,7 +10,12 @@ def main():
     image = imread(args.input_image)
     mask = imread(args.mask, as_grey=True)
 
-    output_image = Inpainter(image, mask, args.patch_size).inpaint()
+    output_image = Inpainter(
+        image,
+        mask,
+        patch_size=args.patch_size,
+        plot_progress=args.plot_progress
+    ).inpaint()
     imsave(args.output, output_image, quality=100)
 
 
@@ -28,6 +33,12 @@ def parse_args():
         '--output',
         help='the file path to save the output image',
         default='output.jpg'
+    )
+    parser.add_argument(
+        '--plot-progress',
+        help='plot each generated image',
+        action='store_true',
+        default=False
     )
     parser.add_argument(
         'input_image',
