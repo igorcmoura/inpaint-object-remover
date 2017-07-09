@@ -31,11 +31,11 @@ class Inpainter():
             if self.plot_progress:
                 self._plot_image()
 
-            # TODO: compute priorities
+            self._update_priorities()
+
             # TODO: find max priority patch
             # TODO: find closest patch
             # TODO: copy data
-            # TODO: update confidence
             # TODO: check continue
             keep_going = False
 
@@ -44,13 +44,6 @@ class Inpainter():
     def _validate_inputs(self):
         if self.image.shape[:2] != self.mask.shape:
             raise AttributeError('mask and image must be of the same size')
-
-    def _initialize_confidence(self):
-        """ Initialize the target region with 0 and source region with 1
-
-        The confidence is initially the inverse of the mask.
-        """
-        self.confidence = 1 - self.mask
 
     def _plot_image(self):
         height, width = self.working_mask.shape
@@ -71,7 +64,15 @@ class Inpainter():
         image += rgb_white_region
 
         plt.imshow(image)
-        plt.show()
+        plt.draw()
+        plt.pause(0.01)  # TODO: check if this is necessary
+
+    def _initialize_confidence(self):
+        """ Initialize the target region with 0 and source region with 1
+
+        The confidence is initially the inverse of the mask.
+        """
+        self.confidence = (1 - self.mask).astype(float)
 
     def _find_front(self):
         """ Find the front using laplacian on the mask
@@ -82,3 +83,39 @@ class Inpainter():
         filter the negative values.
         """
         self.front = (laplace(self.working_mask) > 0).astype('uint8')
+
+    def _update_priorities(self):
+        self._update_confidence()
+        # TODO: update data
+        # TODO: calc priority
+
+    def _update_confidence(self):
+        new_confidence = np.copy(self.confidence)
+        front_positions = np.argwhere(self.front == 1)
+        for point in front_positions:
+            patch = self._get_patch(point)
+            patch_area = (patch[0][1]-patch[0][0]) * (patch[1][1]-patch[1][0])
+
+            new_confidence[point[0], point[1]] = sum(sum(
+                self.confidence[
+                    patch[0][0]:patch[0][1]+1,
+                    patch[1][0]:patch[1][1]+1
+                ]
+            ))/patch_area
+
+        self.confidence = new_confidence
+
+    def _get_patch(self, point):
+        half_patch_size = (self.patch_size-1)//2
+        height, width = self.working_image.shape[:2]
+        patch = [
+            [
+                max(0, point[0] - half_patch_size),
+                min(point[0] + half_patch_size, height-1)
+            ],
+            [
+                max(0, point[1] - half_patch_size),
+                min(point[1] + half_patch_size, width-1)
+            ]
+        ]
+        return patch
