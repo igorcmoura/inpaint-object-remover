@@ -94,14 +94,9 @@ class Inpainter():
         front_positions = np.argwhere(self.front == 1)
         for point in front_positions:
             patch = self._get_patch(point)
-            patch_area = (patch[0][1]-patch[0][0]) * (patch[1][1]-patch[1][0])
-
             new_confidence[point[0], point[1]] = sum(sum(
-                self.confidence[
-                    patch[0][0]:patch[0][1]+1,
-                    patch[1][0]:patch[1][1]+1
-                ]
-            ))/patch_area
+                self._patch_data(self.confidence, patch)
+            ))/self._patch_area(patch)
 
         self.confidence = new_confidence
 
@@ -119,3 +114,14 @@ class Inpainter():
             ]
         ]
         return patch
+
+    @staticmethod
+    def _patch_area(patch):
+        return (patch[0][1]-patch[0][0]) * (patch[1][1]-patch[1][0])
+
+    @staticmethod
+    def _patch_data(source, patch):
+        return source[
+            patch[0][0]:patch[0][1]+1,
+            patch[1][0]:patch[1][1]+1
+        ]
