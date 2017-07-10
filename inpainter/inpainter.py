@@ -142,8 +142,9 @@ class Inpainter():
         height, width = self.working_image.shape[:2]
 
         grey_image = rgb2grey(self.working_image)
+        grey_image[self.working_mask == 1] = None
 
-        gradient = np.array(np.gradient(grey_image))*(1 - self.working_mask)
+        gradient = np.nan_to_num(np.array(np.gradient(grey_image)))
 
         dist = np.sqrt(gradient[0]**2 + gradient[1]**2)
         max_gradient = np.zeros([height, width, 2])
