@@ -52,8 +52,7 @@ class Inpainter():
 
         # Remove the target region from the image
         inverse_mask = 1 - self.working_mask
-        rgb_inverse_mask = inverse_mask.reshape(height, width, 1) \
-            .repeat(3, axis=2)
+        rgb_inverse_mask = self._to_rgb(inverse_mask)
         image = self.working_image * rgb_inverse_mask
 
         # Fill the target borders with red
@@ -61,8 +60,7 @@ class Inpainter():
 
         # Fill the inside of the target region with white
         white_region = (self.working_mask - self.front) * 255
-        rgb_white_region = white_region.reshape(height, width, 1) \
-            .repeat(3, axis=2)
+        rgb_white_region = self._to_rgb(white_region)
         image += rgb_white_region
 
         plt.clf()
@@ -78,20 +76,16 @@ class Inpainter():
 
         The data starts with zero for all pixels.
 
-        The working mask starts as a copy of the original mask.
-
-        The working image starts as a copy of the original image minus the
-        region to be removed.
+        The working image and working mask start as copies of the original
+        image and mask.
         """
         height, width = self.image.shape[:2]
 
         self.confidence = (1 - self.mask).astype(float)
         self.data = np.zeros([height, width])
 
+        self.working_image = np.copy(self.image)
         self.working_mask = np.copy(self.mask)
-
-        rgb_mask = self.mask.reshape(height, width, 1).repeat(3, axis=2)
-        self.working_image = np.copy(self.image)*(1 - rgb_mask)
 
     def _find_front(self):
         """ Find the front using laplacian on the mask
@@ -183,10 +177,7 @@ class Inpainter():
                    .sum() != 0:
                     continue
 
-                difference = self._compare_patches(
-                    self._patch_data(self.working_image, target_patch),
-                    self._patch_data(self.working_image, source_patch)
-                )
+                difference = self._compare_patches(target_patch, source_patch)
                 if best_match is None or difference < best_match_difference:
                     best_match = source_patch
                     best_match_difference = difference
@@ -219,6 +210,19 @@ class Inpainter():
         ]
         return patch
 
+    def _compare_patches(self, target_patch, source_patch):
+        mask = 1 - self._patch_data(self.working_mask, target_patch)
+        rgb_mask = self._to_rgb(mask)
+        target_data = self._patch_data(
+            self.working_image,
+            target_patch
+        ) * rgb_mask
+        source_data = self._patch_data(
+            self.working_image,
+            source_patch
+        ) * rgb_mask
+        return ((target_data - source_data)**2).sum()
+
     def _finished(self):
         return self.working_mask.sum() == 0
 
@@ -238,12 +242,13 @@ class Inpainter():
         ]
 
     @staticmethod
-    def _compare_patches(patch_data1, patch_data2):
-        return ((patch_data1 - patch_data2)**2).sum()
-
-    @staticmethod
     def _copy_to_patch(dest, dest_patch, data):
         dest[
             dest_patch[0][0]:dest_patch[0][1]+1,
             dest_patch[1][0]:dest_patch[1][1]+1
         ] = data
+
+    @staticmethod
+    def _to_rgb(image):
+        height, width = image.shape
+        return image.reshape(height, width, 1).repeat(3, axis=2)
