@@ -6,11 +6,14 @@ from scipy.ndimage.filters import convolve
 
 
 class Inpainter():
-    def __init__(self, image, mask, patch_size=9, plot_progress=False):
+    def __init__(self, image, mask, patch_size=9, plot_progress=False,
+                 confidence_iterations=4, confidence_amplifier=10):
         self.image = image.astype('uint8')
         self.mask = mask.round().astype('uint8')
         self.patch_size = patch_size
         self.plot_progress = plot_progress
+        self.confidence_iterations = confidence_iterations
+        self.confidence_amplifier = confidence_amplifier
 
         # Non initialized attributes
         self.working_image = None
@@ -110,7 +113,7 @@ class Inpainter():
             patch = self._get_patch(point)
             new_confidence[point[0], point[1]] = sum(sum(
                 self._patch_data(self.confidence, patch)
-            ))/self._patch_area(patch)
+            ))/(self._patch_area(patch)/self.confidence_amplifier)
 
         self.confidence = new_confidence
 
@@ -193,6 +196,16 @@ class Inpainter():
         return best_match
 
     def _update_image(self, target_patch, source_patch):
+        pixels_positions = np.argwhere(
+            self._patch_data(
+                self.working_mask - self.front,
+                target_patch
+            ) == 1
+        ) + [target_patch[0][0], target_patch[1][0]]
+        for i in range(self.confidence_iterations):
+            for point in pixels_positions:
+                self._update_pixel_confidence(point)
+
         self._copy_to_patch(
             self.working_image,
             target_patch,
@@ -203,6 +216,13 @@ class Inpainter():
             target_patch,
             0
         )
+
+    def _update_pixel_confidence(self, point):
+        # TODO: merge this with _update_confidence
+        patch = self._get_patch(point)
+        self.confidence[point[0], point[1]] = sum(sum(
+            self._patch_data(self.confidence, patch)
+        ))/self._patch_area(patch)
 
     def _get_patch(self, point):
         half_patch_size = (self.patch_size-1)//2
