@@ -34,11 +34,12 @@ class Inpainter():
 
             self._update_priority()
 
-            # TODO: find max priority patch
-            # TODO: find closest patch
-            # TODO: copy data
-            # TODO: check continue
-            keep_going = False
+            target_patch = self._find_highest_priority_patch()
+            source_patch = self._find_source_patch(target_patch)
+
+            self._update_image(target_patch, source_patch)
+
+            keep_going = not self._finished()
 
         return self.working_image
 
@@ -64,6 +65,7 @@ class Inpainter():
             .repeat(3, axis=2)
         image += rgb_white_region
 
+        plt.clf()
         plt.imshow(image)
         plt.draw()
         plt.pause(0.01)  # TODO: check if this is necessary
@@ -76,16 +78,20 @@ class Inpainter():
 
         The data starts with zero for all pixels.
 
-        The working image and the working mask start as copies of the original
-        image and mask.
+        The working mask starts as a copy of the original mask.
+
+        The working image starts as a copy of the original image minus the
+        region to be removed.
         """
         height, width = self.image.shape[:2]
 
         self.confidence = (1 - self.mask).astype(float)
         self.data = np.zeros([height, width])
 
-        self.working_image = np.copy(self.image)
         self.working_mask = np.copy(self.mask)
+
+        rgb_mask = self.mask.reshape(height, width, 1).repeat(3, axis=2)
+        self.working_image = np.copy(self.image)*(1 - rgb_mask)
 
     def _find_front(self):
         """ Find the front using laplacian on the mask
@@ -156,6 +162,48 @@ class Inpainter():
             max_gradient[point[0], point[1], 1] = x_gradient.max()
         return max_gradient
 
+    def _find_highest_priority_patch(self):
+        point = np.unravel_index(self.priority.argmax(), self.priority.shape)
+        return self._get_patch(point)
+
+    def _find_source_patch(self, target_patch):
+        height, width = self.working_image.shape[:2]
+        patch_height, patch_width = self._patch_shape(target_patch)
+
+        best_match = None
+        best_match_difference = 0
+
+        for y in range(height - patch_height + 1):
+            for x in range(width - patch_width + 1):
+                source_patch = [
+                    [y, y + patch_height-1],
+                    [x, x + patch_width-1]
+                ]
+                if self._patch_data(self.working_mask, source_patch) \
+                   .sum() != 0:
+                    continue
+
+                difference = self._compare_patches(
+                    self._patch_data(self.working_image, target_patch),
+                    self._patch_data(self.working_image, source_patch)
+                )
+                if best_match is None or difference < best_match_difference:
+                    best_match = source_patch
+                    best_match_difference = difference
+        return best_match
+
+    def _update_image(self, target_patch, source_patch):
+        self._copy_to_patch(
+            self.working_image,
+            target_patch,
+            self._patch_data(self.working_image, source_patch)
+        )
+        self._copy_to_patch(
+            self.working_mask,
+            target_patch,
+            0
+        )
+
     def _get_patch(self, point):
         half_patch_size = (self.patch_size-1)//2
         height, width = self.working_image.shape[:2]
@@ -171,9 +219,16 @@ class Inpainter():
         ]
         return patch
 
+    def _finished(self):
+        return self.working_mask.sum() == 0
+
     @staticmethod
     def _patch_area(patch):
-        return (patch[0][1]-patch[0][0]) * (patch[1][1]-patch[1][0])
+        return (1+patch[0][1]-patch[0][0]) * (1+patch[1][1]-patch[1][0])
+
+    @staticmethod
+    def _patch_shape(patch):
+        return (1+patch[0][1]-patch[0][0]), (1+patch[1][1]-patch[1][0])
 
     @staticmethod
     def _patch_data(source, patch):
@@ -181,3 +236,14 @@ class Inpainter():
             patch[0][0]:patch[0][1]+1,
             patch[1][0]:patch[1][1]+1
         ]
+
+    @staticmethod
+    def _compare_patches(patch_data1, patch_data2):
+        return ((patch_data1 - patch_data2)**2).sum()
+
+    @staticmethod
+    def _copy_to_patch(dest, dest_patch, data):
+        dest[
+            dest_patch[0][0]:dest_patch[0][1]+1,
+            dest_patch[1][0]:dest_patch[1][1]+1
+        ] = data
