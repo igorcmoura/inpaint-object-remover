@@ -66,7 +66,7 @@ class Inpainter():
         plt.clf()
         plt.imshow(image)
         plt.draw()
-        plt.pause(0.01)  # TODO: check if this is necessary
+        plt.pause(0.001)  # TODO: check if this is necessary
 
     def _initialize_attributes(self):
         """ Initialize the non initialized attributes
@@ -122,11 +122,11 @@ class Inpainter():
 
     def _calc_normal_matrix(self):
         x_kernel = np.array([[.25, 0, -.25], [.5, 0, -.5], [.25, 0, -.25]])
-        y_kernel = np.array([[.25, .5, .25], [0, 0, 0], [-.25, -.5, -.25]])
+        y_kernel = np.array([[-.25, -.5, -.25], [0, 0, 0], [.25, .5, .25]])
 
         x_normal = convolve(self.working_mask.astype(float), x_kernel)
         y_normal = convolve(self.working_mask.astype(float), y_kernel)
-        normal = np.dstack((y_normal, x_normal))
+        normal = np.dstack((x_normal, y_normal))
 
         height, width = normal.shape[:2]
         norm = np.sqrt(y_normal**2 + x_normal**2) \
@@ -144,6 +144,8 @@ class Inpainter():
         grey_image = rgb2grey(self.working_image)
 
         gradient = np.array(np.gradient(grey_image))*(1 - self.working_mask)
+
+        dist = np.sqrt(gradient[0]**2 + gradient[1]**2)
         max_gradient = np.zeros([height, width, 2])
 
         front_positions = np.argwhere(self.front == 1)
@@ -152,8 +154,14 @@ class Inpainter():
             y_gradient = self._patch_data(gradient[0], patch)
             x_gradient = self._patch_data(gradient[1], patch)
 
-            max_gradient[point[0], point[1], 0] = y_gradient.max()
-            max_gradient[point[0], point[1], 1] = x_gradient.max()
+            dist_patch = self._patch_data(dist, patch)
+            max_pos = np.unravel_index(dist_patch.argmax(), dist_patch.shape)
+
+            max_gradient[point[0], point[1], 0] = \
+                y_gradient[max_pos[0], max_pos[1]]
+            max_gradient[point[0], point[1], 1] = \
+                x_gradient[max_pos[0], max_pos[1]]
+
         return max_gradient
 
     def _find_highest_priority_patch(self):
