@@ -7,7 +7,7 @@ from scipy.ndimage.filters import convolve
 
 class Inpainter():
     def __init__(self, image, mask, patch_size=9, plot_progress=False,
-                 confidence_iterations=4, confidence_amplifier=10):
+                 confidence_iterations=4, confidence_amplifier=1):
         self.image = image.astype('uint8')
         self.mask = mask.round().astype('uint8')
         self.patch_size = patch_size
@@ -148,9 +148,7 @@ class Inpainter():
         grey_image[self.working_mask == 1] = None
 
         gradient = np.nan_to_num(np.array(np.gradient(grey_image)))
-
-        dist = np.sqrt(gradient[0]**2 + gradient[1]**2)
-        max_gradient = np.zeros([height, width, 2])
+        sum_gradient = np.zeros([height, width, 2])
 
         front_positions = np.argwhere(self.front == 1)
         for point in front_positions:
@@ -158,15 +156,10 @@ class Inpainter():
             y_gradient = self._patch_data(gradient[0], patch)
             x_gradient = self._patch_data(gradient[1], patch)
 
-            dist_patch = self._patch_data(dist, patch)
-            max_pos = np.unravel_index(dist_patch.argmax(), dist_patch.shape)
+            sum_gradient[point[0], point[1], 0] = np.fabs(y_gradient).sum()
+            sum_gradient[point[0], point[1], 1] = np.fabs(x_gradient).sum()
 
-            max_gradient[point[0], point[1], 0] = \
-                y_gradient[max_pos[0], max_pos[1]]
-            max_gradient[point[0], point[1], 1] = \
-                x_gradient[max_pos[0], max_pos[1]]
-
-        return max_gradient
+        return sum_gradient/sum_gradient.max()
 
     def _find_highest_priority_patch(self):
         point = np.unravel_index(self.priority.argmax(), self.priority.shape)
