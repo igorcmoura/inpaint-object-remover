@@ -1,19 +1,17 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 from skimage.color import rgb2grey
 from skimage.filters import laplace
 from scipy.ndimage.filters import convolve
 
 
 class Inpainter():
-    def __init__(self, image, mask, patch_size=9, plot_progress=False,
-                 confidence_iterations=4, confidence_amplifier=1):
+    def __init__(self, image, mask, patch_size=9, plot_progress=False):
         self.image = image.astype('uint8')
         self.mask = mask.round().astype('uint8')
         self.patch_size = patch_size
         self.plot_progress = plot_progress
-        self.confidence_iterations = confidence_iterations
-        self.confidence_amplifier = confidence_amplifier
 
         # Non initialized attributes
         self.working_image = None
@@ -29,6 +27,7 @@ class Inpainter():
         self._validate_inputs()
         self._initialize_attributes()
 
+        start_time = time.time()
         keep_going = True
         while keep_going:
             self._find_front()
@@ -38,12 +37,16 @@ class Inpainter():
             self._update_priority()
 
             target_pixel = self._find_highest_priority_pixel()
+            find_start_time = time.time()
             source_patch = self._find_source_patch(target_pixel)
+            print('Time to find best: %f seconds'
+                  % (time.time()-find_start_time))
 
             self._update_image(target_pixel, source_patch)
 
             keep_going = not self._finished()
 
+        print('Took %f seconds to complete' % (time.time() - start_time))
         return self.working_image
 
     def _validate_inputs(self):
@@ -113,7 +116,7 @@ class Inpainter():
             patch = self._get_patch(point)
             new_confidence[point[0], point[1]] = sum(sum(
                 self._patch_data(self.confidence, patch)
-            ))/(self._patch_area(patch)/self.confidence_amplifier)
+            ))/self._patch_area(patch)
 
         self.confidence = new_confidence
 
@@ -248,7 +251,11 @@ class Inpainter():
         return ((target_data - source_data)**2).sum()
 
     def _finished(self):
-        return self.working_mask.sum() == 0
+        height, width = self.working_image.shape[:2]
+        remaining = self.working_mask.sum()
+        total = height * width
+        print('%d of %d completed' % (total-remaining, total))
+        return remaining == 0
 
     @staticmethod
     def _patch_area(patch):
