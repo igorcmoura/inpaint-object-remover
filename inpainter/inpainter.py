@@ -37,10 +37,10 @@ class Inpainter():
 
             self._update_priority()
 
-            target_patch = self._find_highest_priority_patch()
-            source_patch = self._find_source_patch(target_patch)
+            target_pixel = self._find_highest_priority_pixel()
+            source_patch = self._find_source_patch(target_pixel)
 
-            self._update_image(target_patch, source_patch)
+            self._update_image(target_pixel, source_patch)
 
             keep_going = not self._finished()
 
@@ -161,11 +161,12 @@ class Inpainter():
 
         return sum_gradient/sum_gradient.max()
 
-    def _find_highest_priority_patch(self):
+    def _find_highest_priority_pixel(self):
         point = np.unravel_index(self.priority.argmax(), self.priority.shape)
-        return self._get_patch(point)
+        return point
 
-    def _find_source_patch(self, target_patch):
+    def _find_source_patch(self, target_pixel):
+        target_patch = self._get_patch(target_pixel)
         height, width = self.working_image.shape[:2]
         patch_height, patch_width = self._patch_shape(target_patch)
 
@@ -188,34 +189,35 @@ class Inpainter():
                     best_match_difference = difference
         return best_match
 
-    def _update_image(self, target_patch, source_patch):
+    def _update_image(self, target_pixel, source_patch):
+        target_patch = self._get_patch(target_pixel)
         pixels_positions = np.argwhere(
             self._patch_data(
-                self.working_mask - self.front,
+                self.working_mask,
                 target_patch
             ) == 1
         ) + [target_patch[0][0], target_patch[1][0]]
-        for i in range(self.confidence_iterations):
-            for point in pixels_positions:
-                self._update_pixel_confidence(point)
+        patch_confidence = self.confidence[target_pixel[0], target_pixel[1]]
+        for point in pixels_positions:
+            self.confidence[point[0], point[1]] = patch_confidence
+
+        mask = self._patch_data(self.working_mask, target_patch)
+        rgb_mask = self._to_rgb(mask)
+        source_data = self._patch_data(self.working_image, source_patch)
+        target_data = self._patch_data(self.working_image, target_patch)
+
+        new_data = source_data*rgb_mask + target_data*(1-rgb_mask)
 
         self._copy_to_patch(
             self.working_image,
             target_patch,
-            self._patch_data(self.working_image, source_patch)
+            new_data
         )
         self._copy_to_patch(
             self.working_mask,
             target_patch,
             0
         )
-
-    def _update_pixel_confidence(self, point):
-        # TODO: merge this with _update_confidence
-        patch = self._get_patch(point)
-        self.confidence[point[0], point[1]] = sum(sum(
-            self._patch_data(self.confidence, patch)
-        ))/self._patch_area(patch)
 
     def _get_patch(self, point):
         half_patch_size = (self.patch_size-1)//2
