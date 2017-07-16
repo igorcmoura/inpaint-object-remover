@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-from skimage.color import rgb2grey
+from skimage.color import rgb2grey, rgb2lab
 from skimage.filters import laplace
 from scipy.ndimage.filters import convolve
 
@@ -188,6 +188,8 @@ class Inpainter():
         best_match = None
         best_match_difference = 0
 
+        lab_image = rgb2lab(self.working_image)
+
         for y in range(height - patch_height + 1):
             for x in range(width - patch_width + 1):
                 source_patch = [
@@ -198,8 +200,11 @@ class Inpainter():
                    .sum() != 0:
                     continue
 
-                difference = \
-                    self._calc_patch_difference(target_patch, source_patch)
+                difference = self._calc_patch_difference(
+                    lab_image,
+                    target_patch,
+                    source_patch
+                )
 
                 if best_match is None or difference < best_match_difference:
                     best_match = source_patch
@@ -251,15 +256,15 @@ class Inpainter():
         ]
         return patch
 
-    def _calc_patch_difference(self, target_patch, source_patch):
+    def _calc_patch_difference(self, image, target_patch, source_patch):
         mask = 1 - self._patch_data(self.working_mask, target_patch)
         rgb_mask = self._to_rgb(mask)
         target_data = self._patch_data(
-            self.working_image,
+            image,
             target_patch
         ) * rgb_mask
         source_data = self._patch_data(
-            self.working_image,
+            image,
             source_patch
         ) * rgb_mask
         squared_distance = ((target_data - source_data)**2).sum()
