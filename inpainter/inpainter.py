@@ -124,7 +124,10 @@ class Inpainter():
         normal = self._calc_normal_matrix()
         gradient = self._calc_gradient_matrix()
 
-        self.data = np.fabs(normal*gradient).sum(axis=2)
+        normal_gradient = normal*gradient
+        self.data = np.sqrt(
+            normal_gradient[:, :, 0]**2 + normal_gradient[:, :, 1]**2
+        ) + 0.001  # To be sure to have a greater than 0 data
 
     def _calc_normal_matrix(self):
         x_kernel = np.array([[.25, 0, -.25], [.5, 0, -.5], [.25, 0, -.25]])
