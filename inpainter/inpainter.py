@@ -154,18 +154,27 @@ class Inpainter():
         grey_image[self.working_mask == 1] = None
 
         gradient = np.nan_to_num(np.array(np.gradient(grey_image)))
-        sum_gradient = np.zeros([height, width, 2])
+        gradient_val = np.sqrt(gradient[0]**2 + gradient[1]**2)
+        max_gradient = np.zeros([height, width, 2])
 
         front_positions = np.argwhere(self.front == 1)
         for point in front_positions:
             patch = self._get_patch(point)
-            y_gradient = self._patch_data(gradient[0], patch)
-            x_gradient = self._patch_data(gradient[1], patch)
+            patch_y_gradient = self._patch_data(gradient[0], patch)
+            patch_x_gradient = self._patch_data(gradient[1], patch)
+            patch_gradient_val = self._patch_data(gradient_val, patch)
 
-            sum_gradient[point[0], point[1], 0] = np.fabs(y_gradient).sum()
-            sum_gradient[point[0], point[1], 1] = np.fabs(x_gradient).sum()
+            patch_max_pos = np.unravel_index(
+                patch_gradient_val.argmax(),
+                patch_gradient_val.shape
+            )
 
-        return sum_gradient/sum_gradient.max()
+            max_gradient[point[0], point[1], 0] = \
+                patch_y_gradient[patch_max_pos]
+            max_gradient[point[0], point[1], 1] = \
+                patch_x_gradient[patch_max_pos]
+
+        return max_gradient
 
     def _find_highest_priority_pixel(self):
         point = np.unravel_index(self.priority.argmax(), self.priority.shape)
