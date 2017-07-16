@@ -198,7 +198,9 @@ class Inpainter():
                    .sum() != 0:
                     continue
 
-                difference = self._compare_patches(target_patch, source_patch)
+                difference = \
+                    self._calc_patch_difference(target_patch, source_patch)
+
                 if best_match is None or difference < best_match_difference:
                     best_match = source_patch
                     best_match_difference = difference
@@ -249,7 +251,7 @@ class Inpainter():
         ]
         return patch
 
-    def _compare_patches(self, target_patch, source_patch):
+    def _calc_patch_difference(self, target_patch, source_patch):
         mask = 1 - self._patch_data(self.working_mask, target_patch)
         rgb_mask = self._to_rgb(mask)
         target_data = self._patch_data(
@@ -260,7 +262,12 @@ class Inpainter():
             self.working_image,
             source_patch
         ) * rgb_mask
-        return ((target_data - source_data)**2).sum()
+        squared_distance = ((target_data - source_data)**2).sum()
+        euclidean_distance = np.sqrt(
+            (target_patch[0][0] - source_patch[0][0])**2 +
+            (target_patch[1][0] - source_patch[1][0])**2
+        )  # tie-breaker factor
+        return squared_distance + euclidean_distance
 
     def _finished(self):
         height, width = self.working_image.shape[:2]
