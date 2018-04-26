@@ -5,7 +5,7 @@ Exemplar-Based Image Inpainting" by A. Criminisi et al.
 ## Setup
 Requires python 3.5 or newer. You can download it [here](https://www.python.org/downloads/).
 
-### Lunix and Mac OS X
+### Linux and Mac OS X
 Inside the project's directory run:
 ```
 pip install -r requirements.txt
