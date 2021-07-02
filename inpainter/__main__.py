@@ -8,7 +8,7 @@ def main():
     args = parse_args()
 
     image = imread(args.input_image)
-    mask = imread(args.mask, as_grey=True)
+    mask = imread(args.mask, as_gray=True)
 
     output_image = Inpainter(
         image,
